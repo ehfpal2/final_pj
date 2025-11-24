@@ -1,13 +1,375 @@
 <!doctype html>
-<html lang="en">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <title>진법 변환 미니 형성평가</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>final_pj</title>
+    <style>
+      :root {
+        --bg: #f5eee2;
+        --card-bg: #fff9ef;
+        --border: #e0d2b8;
+        --accent: #c49a6c;
+        --accent-dark: #9a7747;
+        --text-main: #3b2b1a;
+        --text-sub: #75624a;
+        --danger: #c75151;
+        --radius-lg: 16px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: var(--bg);
+        color: var(--text-main);
+      }
+      #app {
+        max-width: 960px;
+        margin: 24px auto 40px;
+        padding: 0 16px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        text-align: center;
+        color: var(--text-sub);
+        margin-bottom: 24px;
+        font-size: 0.95rem;
+      }
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 16px 20px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+      }
+      .card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .card-title {
+        font-weight: 600;
+        font-size: 1.05rem;
+      }
+      .pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(196, 154, 108, 0.12);
+        color: var(--accent-dark);
+        font-size: 0.8rem;
+      }
+      .row-space {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .timer {
+        font-weight: 600;
+      }
+      .timer span {
+        font-family: "Consolas", "SF Mono", ui-monospace, monospace;
+        font-size: 1.1rem;
+      }
+      button {
+        border: none;
+        border-radius: 999px;
+        padding: 8px 16px;
+        background: var(--accent);
+        color: white;
+        font-weight: 500;
+        font-size: 0.95rem;
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      button:hover {
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--accent-dark);
+        border: 1px solid var(--accent);
+      }
+      button.secondary:hover {
+        background: rgba(196, 154, 108, 0.1);
+      }
+      button.danger {
+        background: var(--danger);
+      }
+      button.danger:hover {
+        background: #a63c3c;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .question {
+        border-radius: 12px;
+        border: 1px dashed var(--border);
+        padding: 8px 10px;
+        margin-bottom: 8px;
+        background: rgba(255, 255, 255, 0.7);
+      }
+      .question-label {
+        font-size: 0.92rem;
+        margin-bottom: 4px;
+      }
+      .question input[type="text"] {
+        width: 100%;
+        padding: 6px 8px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        font-size: 0.95rem;
+      }
+      .section-caption {
+        font-size: 0.85rem;
+        color: var(--text-sub);
+        margin-top: 4px;
+      }
+      #summary-table table,
+      #summary-table th,
+      #summary-table td {
+        border: 1px solid var(--border);
+        border-collapse: collapse;
+        padding: 4px 8px;
+        font-size: 0.9rem;
+      }
+      #summary-table table {
+        width: 100%;
+        margin-top: 8px;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      #summary-table th {
+        background: rgba(196, 154, 108, 0.1);
+      }
+      tr.clickable {
+        cursor: pointer;
+      }
+      tr.clickable:hover {
+        background: #f6efe3;
+      }
+      #chat-log {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 8px;
+        height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        background: #fffdf7;
+      }
+      .chat-user {
+        font-weight: 600;
+        color: var(--text-main);
+      }
+      .chat-assistant {
+        color: var(--accent-dark);
+      }
+      #chat-input {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        font-size: 0.9rem;
+        margin-bottom: 6px;
+      }
+
+      /* ====== 퀴즈 + 그림판 레이아웃 ====== */
+      .quiz-body {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      #scratchpad-container {
+        flex: 0 0 250px;
+        max-width: 250px;
+        background: #fffdf7;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      #scratchpad-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-sub);
+      }
+      #scratchpad-toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 4px;
+      }
+      #scratchpad-toolbar button {
+        padding: 4px 10px;
+        font-size: 0.8rem;
+      }
+      #scratchpad {
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: #ffffff;
+        width: 100%;
+        height: 240px;
+      }
+      .quiz-questions {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+
+      @media (max-width: 800px) {
+        .quiz-body {
+          flex-direction: column;
+        }
+        #scratchpad-container {
+          max-width: 100%;
+        }
+      }
+
+      @media (max-width: 600px) {
+        .card {
+          padding: 12px 14px;
+        }
+        h1 {
+          font-size: 1.4rem;
+        }
+        .card-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 4px;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <h1>진법 변환 미니 형성평가</h1>
+      <p class="subtitle">
+        5분 안에 진법 변환 20문제를 풀어보고, 모르는 문제는 AI에게 원리를 물어보세요.
+      </p>
+
+      <!-- 타이머 + 시작 버튼 -->
+      <section class="card" id="control-section">
+        <div class="card-header">
+          <div class="card-title">퀴즈 컨트롤</div>
+          <span class="pill">총 4단계 · 20문제 · 5분 제한</span>
+        </div>
+        <div class="row-space">
+          <div class="timer">남은 시간: <span id="timer">05:00</span></div>
+          <button id="startQuizBtn">퀴즈 시작</button>
+        </div>
+        <p class="section-caption">
+          ① 단계별 5문제씩 푼 뒤 → ② 전체 제출 → ③ 틀린 문제는 다시 풀기 또는 AI에게 원리 질문.
+        </p>
+      </section>
+
+      <!-- 퀴즈 영역 -->
+      <section class="card hidden" id="quiz-section">
+        <div class="card-header">
+          <div class="card-title">문제 풀기</div>
+          <span class="pill" id="stage-label"></span>
+        </div>
+
+        <div class="quiz-body">
+          <!-- 왼쪽: 그림판 (가, 나 단계에서 사용) -->
+          <div id="scratchpad-container" class="hidden">
+            <div id="scratchpad-title">연습장 (마우스로 숫자를 써보세요)</div>
+            <div id="scratchpad-toolbar">
+              <button id="scratchpad-mode-btn">✏️ 펜</button>
+              <button id="scratchpad-clear-btn" class="secondary">
+                🧽 전체 지우기
+              </button>
+            </div>
+            <canvas id="scratchpad"></canvas>
+            <p class="section-caption">
+              가·나 단계에서만 나타나며,<br />가에서 나로 넘어갈 때 자동으로 비워집니다.
+            </p>
+          </div>
+
+          <!-- 오른쪽: 문제 -->
+          <div class="quiz-questions">
+            <div id="question-list"></div>
+
+            <div class="row-space" style="margin-top: 8px">
+              <button id="nextStageBtn">다음 단계로</button>
+              <button id="finishQuizBtn" class="secondary hidden">
+                전체 제출
+              </button>
+            </div>
+
+            <p id="quiz-message" class="section-caption"></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 정답/오답 요약 -->
+      <section class="card hidden" id="summary-section">
+        <div class="card-header">
+          <div class="card-title">정답/오답 요약</div>
+          <span class="pill">O / X / △ / ★ 스코어</span>
+        </div>
+        <div id="summary-table"></div>
+      </section>
+
+      <!-- 틀린 문제 다시 풀기 -->
+      <section class="card hidden" id="review-section">
+        <div class="card-header">
+          <div class="card-title">틀린 문제 다시 풀기</div>
+          <span class="pill">X → △ 또는 ★ 도전</span>
+        </div>
+        <p id="review-question-text"></p>
+        <input type="text" id="review-answer" placeholder="답을 입력하세요" />
+        <button id="review-submit-btn">답안 제출</button>
+        <p id="review-feedback" class="section-caption"></p>
+      </section>
+
+      <!-- Chatbot 영역 -->
+      <section class="card hidden" id="chat-section">
+        <div class="card-header">
+          <div class="card-title">생성형 AI에게 원리 물어보기</div>
+          <span class="pill">두 번 틀린 문제</span>
+        </div>
+        <p id="chat-hint" class="section-caption">
+          ⚠ 정답을 직접 묻기보다는,<br />
+          “왜 이런 식으로 계산하나요?”, “2진수에서 10진수로 바꿀 때 어떤 규칙이
+          있나요?”처럼<br />
+          <b>원리나 방법</b>을 질문해 보세요.
+        </p>
+        <div id="chat-log"></div>
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="궁금한 점을 입력하세요 (Enter로 전송)"
+        />
+        <button id="chat-send-btn">전송</button>
+      </section>
+
+      <!-- 최종 요약 -->
+      <section class="card hidden" id="final-summary-section">
+        <div class="card-header">
+          <div class="card-title">최종 요약</div>
+          <span class="pill">첫 시도 + 재도전 결과</span>
+        </div>
+        <div id="final-summary"></div>
+      </section>
+    </div>
+
+    <!-- Vite 엔트리 -->
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
