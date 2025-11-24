@@ -32,6 +32,10 @@ const chatSendBtn = document.getElementById("chat-send-btn");
 const finalSummarySection = document.getElementById("final-summary-section");
 const finalSummaryDiv = document.getElementById("final-summary");
 
+// 학생 정보 입력 DOM
+const studentIdInput = document.getElementById("student-id");
+const studentNameInput = document.getElementById("student-name");
+
 // ===== 그림판 DOM =====
 const scratchpadContainer = document.getElementById("scratchpad-container");
 const scratchpadCanvas = document.getElementById("scratchpad");
@@ -56,6 +60,10 @@ let timeLeftWhenSubmitted = 0;
 
 let currentRetryQuestion = null;
 let currentChatQuestion = null;
+
+// 학생 정보 상태
+let studentId = "";
+let studentName = "";
 
 // ===== 3. 타이머 =====
 function formatTime(sec) {
@@ -391,8 +399,29 @@ function resetState() {
   clearScratchpad();
 }
 
-// ===== 8. 이벤트: 퀴즈 시작 / 단계 이동 / 제출 =====
+// ===== 8. 학생 정보 입력에 따라 시작 버튼 활성화 =====
+function updateStartButtonState() {
+  const idVal = studentIdInput.value.trim();
+  const nameVal = studentNameInput.value.trim();
+  startQuizBtn.disabled = !(idVal && nameVal);
+}
+
+studentIdInput.addEventListener("input", updateStartButtonState);
+studentNameInput.addEventListener("input", updateStartButtonState);
+
+// ===== 9. 이벤트: 퀴즈 시작 / 단계 이동 / 제출 =====
 startQuizBtn.addEventListener("click", () => {
+  const idVal = studentIdInput.value.trim();
+  const nameVal = studentNameInput.value.trim();
+
+  if (!idVal || !nameVal) {
+    alert("학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.");
+    return;
+  }
+
+  studentId = idVal;
+  studentName = nameVal;
+
   resetState();
   generateAllQuestions();
   quizSection.classList.remove("hidden");
@@ -455,7 +484,7 @@ finishQuizBtn.addEventListener("click", () => {
   gradeAllQuestions();
 });
 
-// ===== 9. 채점 & 요약 (O/X/△/★) =====
+// ===== 10. 채점 & 요약 (O/X/△/★) =====
 function normalizeAnswer(str) {
   return (str || "").trim().toUpperCase();
 }
@@ -544,7 +573,7 @@ function renderSummaryTable() {
   updateFinalSummary(oCount, triCount, starCount, xCount, total);
 }
 
-// ===== 10. 틀린 문제 다시 풀기 + 두 번 틀리면 챗봇 =====
+// ===== 11. 틀린 문제 다시 풀기 + 두 번 틀리면 챗봇 =====
 summaryTable.addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-qid]");
   if (!tr) return;
@@ -612,7 +641,7 @@ reviewSubmitBtn.addEventListener("click", () => {
   }
 });
 
-// ===== 11. 챗봇 (생성형 AI) =====
+// ===== 12. 챗봇 (생성형 AI) =====
 function appendChatMessage(role, text) {
   const div = document.createElement("div");
   if (role === "user") {
@@ -698,7 +727,6 @@ async function askChatbot(question, userText) {
 당신은 고등학교 정보 교과 선생님입니다.
 학생이 푼 진법 변환 문제를 도와주되, 절대로 정답을 숫자로 직접 말하지 마세요.
 대신,
-- 본인이 계산해서 자릿수를 맞는지 물어보면 정답여부는 알려주고
 - 개념과 원리를 쉬운 말로 설명하고
 - 비슷하지만 다른 예시를 들어주고
 - 학생이 스스로 계산해 볼 수 있도록 질문을 던져 주세요.
@@ -717,7 +745,7 @@ ${userText}
 위 학생의 질문에 대해,
 1) 이 문제를 풀 때 어떤 원리/규칙을 사용해야 하는지 설명해 주고,
 2) 예를 하나 들어서 연습하게 도와주고,
-3) 마지막에는 "최상위 비트는 값이 얼마야?." 처럼 스스로 풀어보게 유도해 주세요.
+3) 마지막에는 "그럼 이 문제에 이 원리를 적용해 보세요." 처럼 스스로 풀어보게 유도해 주세요.
   `.trim();
 
   question.chatCount += 1;
@@ -769,12 +797,13 @@ ${userText}
   }
 }
 
-// ===== 12. 최종 요약 =====
+// ===== 13. 최종 요약 =====
 function updateFinalSummary(oCount, triCount, starCount, xCount, total) {
   const timeStr = formatTime(timeLeftWhenSubmitted);
   finalSummaryDiv.innerHTML = `
     <p>🕒 첫 5분 내 제출 기준</p>
     <ul>
+      <li>학생: <b>${studentId || "-"} ${studentName || ""}</b></li>
       <li>처음 맞춘 문제 수(O): <b>${oCount} / ${total}</b></li>
       <li>제출 시 남은 시간: <b>${timeStr}</b></li>
       <li>다시 풀어서 맞힌 문제 수(△): <b>${triCount}</b></li>
@@ -794,5 +823,8 @@ function showFinalSummary() {
   updateFinalSummary(oCount, triCount, starCount, xCount, total);
 }
 
-// ===== 13. 초기화 시 그림판 준비 =====
+// ===== 14. 초기화 시 그림판 준비 =====
 initScratchpad();
+
+// 시작 버튼 초기 상태 한번 반영
+updateStartButtonState();
