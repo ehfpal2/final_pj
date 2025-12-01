@@ -3,10 +3,46 @@
 // ===== 0. 환경변수 불러오기 (Vite: VITE_ 접두사 필수) =====
 const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
 
+// 🔗 Google Form 설정
+const FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSeF3oDjvb9YohBuygEQ6tW_U3MrExWEHS87cb5aqSoodDKzyA/formResponse";
+
+// Google Form entry 매핑 (학번/이름 + A/B/C/D 각 문제 + 점수)
+const ENTRY_MAP = {
+  studentId: "entry.1156379572",
+  studentName: "entry.1031372173",
+  "A-1": "entry.1965346174",
+  "A-2": "entry.795362634",
+  "A-3": "entry.449716902",
+  "A-4": "entry.1916947983",
+  "A-5": "entry.249009695",
+  "B-1": "entry.249164313",
+  "B-2": "entry.2064784806",
+  "B-3": "entry.1368139771",
+  "B-4": "entry.1240036767",
+  "B-5": "entry.420685753",
+  "C-1": "entry.1971980148",
+  "C-2": "entry.1888873729",
+  "C-3": "entry.1326659845",
+  "C-4": "entry.1382173466",
+  "C-5": "entry.791670312",
+  "D-1": "entry.95235877",
+  "D-2": "entry.981241081",
+  "D-3": "entry.10177078",
+  "D-4": "entry.1512639108",
+  "D-5": "entry.1260872459",
+
+  // ⬇⬇⬇ 여기 세 개는 선생님이 폼에서 "첫 점수 / 최종 점수 / 별표 개수"
+  // 질문을 새로 만들고, 실제 entry ID로 교체해 주세요.
+  // 예) initialScore: "entry.1234567890"
+  initialScore: "entry.1921141570",
+  finalScore: "entry.1902624582",
+  starCount: "entry.1581906669",
+};
+
 // ===== 1. DOM 요소 =====
 const startQuizBtn = document.getElementById("startQuizBtn");
 
-const controlSection = document.getElementById("control-section");
 const quizSection = document.getElementById("quiz-section");
 const stageLabel = document.getElementById("stage-label");
 const questionList = document.getElementById("question-list");
@@ -31,6 +67,9 @@ const chatSendBtn = document.getElementById("chat-send-btn");
 
 const finalSummarySection = document.getElementById("final-summary-section");
 const finalSummaryDiv = document.getElementById("final-summary");
+const submitAndEndBtn = document.getElementById("submit-and-end-btn");
+const restartQuizBtn = document.getElementById("restart-quiz-btn");
+const finalMessageEl = document.getElementById("final-message");
 
 // 학생 정보 입력 DOM
 const studentIdInput = document.getElementById("student-id");
@@ -65,6 +104,9 @@ let currentChatQuestion = null;
 let studentId = "";
 let studentName = "";
 
+// Google Form 중복 제출 방지
+let formSubmitted = false;
+
 // ===== 3. 타이머 =====
 function formatTime(sec) {
   const m = String(Math.floor(sec / 60)).padStart(2, "0");
@@ -88,7 +130,7 @@ function startTimer() {
         "시간이 종료되었습니다. 현재까지 입력한 답안으로 채점합니다.";
       lockInputs();
       timeLeftWhenSubmitted = 0;
-      gradeAllQuestions();
+      gradeAllQuestions(); // 자동 채점 (폼 전송은 나중에 '마무리' 버튼에서)
     }
   }, 1000);
 }
@@ -100,18 +142,16 @@ function stopTimer() {
   }
 }
 
-// ===== 4. 문제 생성 (1~8비트, 섹션 내 중복 없음) =====
+// ===== 4. 문제 생성 =====
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-
 function randomNumByBitLen() {
   const bits = randInt(1, 8);
   const max = 2 ** bits - 1;
   const n = randInt(0, max);
   return n;
 }
-
 function toBinary(n) {
   return n.toString(2);
 }
@@ -140,30 +180,26 @@ function generateQuestionsForSection(section) {
     let meta = {};
 
     switch (section.type) {
-      case "bin2dec": {
+      case "bin2dec":
         promptText = `${bin}₂ 를 10진수로 변환하세요.`;
         correctAnswer = String(n);
         meta = { source: bin, targetBase: 10 };
         break;
-      }
-      case "dec2bin": {
+      case "dec2bin":
         promptText = `${n}₁₀ 를 2진수로 변환하세요.`;
         correctAnswer = bin;
         meta = { source: n, targetBase: 2 };
         break;
-      }
-      case "bin2oct": {
+      case "bin2oct":
         promptText = `${bin}₂ 를 8진수로 변환하세요.`;
         correctAnswer = oct;
         meta = { source: bin, targetBase: 8 };
         break;
-      }
-      case "bin2hex": {
+      case "bin2hex":
         promptText = `${bin}₂ 를 16진수로 변환하세요.`;
         correctAnswer = hex;
         meta = { source: bin, targetBase: 16 };
         break;
-      }
     }
 
     qs.push({
@@ -175,7 +211,7 @@ function generateQuestionsForSection(section) {
       userAnswer: "",
       meta,
       initialCorrect: false,
-      status: null, // 'O', 'X', '△', '★'
+      status: null,
       retryCount: 0,
       reviewAttempts: 0,
       chatCount: 0,
@@ -192,7 +228,7 @@ function generateAllQuestions() {
   });
 }
 
-// ===== 5. 그림판 로직 (펜/지우개 + A→B 초기화) =====
+// ===== 5. 그림판 =====
 let spCtx = null;
 let spDrawing = false;
 let spLastX = 0;
@@ -200,38 +236,25 @@ let spLastY = 0;
 let spIsEraser = false;
 const SP_BG = "#ffffff";
 
-// 캔버스 크기 재설정 (표시될 때마다 호출)
 function resizeScratchpadCanvas() {
   if (!scratchpadCanvas) return;
   const rect = scratchpadCanvas.getBoundingClientRect();
-
   const width = rect.width || 250;
   const height = rect.height || 240;
-
   scratchpadCanvas.width = width;
   scratchpadCanvas.height = height;
-
-  if (spCtx) {
-    clearScratchpad();
-  }
+  if (spCtx) clearScratchpad();
 }
-
 function clearScratchpad() {
   if (!spCtx || !scratchpadCanvas) return;
   spCtx.fillStyle = SP_BG;
   spCtx.fillRect(0, 0, scratchpadCanvas.width, scratchpadCanvas.height);
 }
-
 function initScratchpad() {
   if (!scratchpadCanvas) return;
   spCtx = scratchpadCanvas.getContext("2d");
-
-  // 처음 로드시 한 번
   resizeScratchpadCanvas();
-
-  window.addEventListener("resize", () => {
-    resizeScratchpadCanvas();
-  });
+  window.addEventListener("resize", () => resizeScratchpadCanvas());
 
   const getPos = (e) => {
     const rect = scratchpadCanvas.getBoundingClientRect();
@@ -246,7 +269,6 @@ function initScratchpad() {
     }
     return { x, y };
   };
-
   const startDraw = (e) => {
     e.preventDefault();
     spDrawing = true;
@@ -254,7 +276,6 @@ function initScratchpad() {
     spLastX = pos.x;
     spLastY = pos.y;
   };
-
   const draw = (e) => {
     if (!spDrawing || !spCtx) return;
     e.preventDefault();
@@ -263,66 +284,39 @@ function initScratchpad() {
     spCtx.lineJoin = "round";
     spCtx.lineWidth = spIsEraser ? 16 : 3;
     spCtx.strokeStyle = spIsEraser ? SP_BG : "#333333";
-
     spCtx.beginPath();
     spCtx.moveTo(spLastX, spLastY);
     spCtx.lineTo(pos.x, pos.y);
     spCtx.stroke();
-
     spLastX = pos.x;
     spLastY = pos.y;
   };
-
   const endDraw = (e) => {
     if (!spDrawing) return;
     e.preventDefault();
     spDrawing = false;
   };
 
-  // 마우스 이벤트
   scratchpadCanvas.addEventListener("mousedown", startDraw);
   scratchpadCanvas.addEventListener("mousemove", draw);
   scratchpadCanvas.addEventListener("mouseup", endDraw);
   scratchpadCanvas.addEventListener("mouseleave", endDraw);
-
-  // 터치 이벤트
-  scratchpadCanvas.addEventListener("touchstart", startDraw, {
-    passive: false,
-  });
+  scratchpadCanvas.addEventListener("touchstart", startDraw, { passive: false });
   scratchpadCanvas.addEventListener("touchmove", draw, { passive: false });
   scratchpadCanvas.addEventListener("touchend", endDraw, { passive: false });
   scratchpadCanvas.addEventListener("touchcancel", endDraw, { passive: false });
 
-  // 버튼 이벤트
-  if (scratchpadModeBtn) {
-    scratchpadModeBtn.addEventListener("click", () => {
-      spIsEraser = !spIsEraser;
-      scratchpadModeBtn.textContent = spIsEraser ? "🧽 지우개" : "✏️ 펜";
-    });
-  }
-
-  if (scratchpadClearBtn) {
-    scratchpadClearBtn.addEventListener("click", () => {
-      clearScratchpad();
-    });
-  }
+  scratchpadModeBtn.addEventListener("click", () => {
+    spIsEraser = !spIsEraser;
+    scratchpadModeBtn.textContent = spIsEraser ? "🧽 지우개" : "✏️ 펜";
+  });
+  scratchpadClearBtn.addEventListener("click", () => clearScratchpad());
 }
 
-// ===== 6. 퀴즈 렌더링 + 그림판 표시/숨기기 =====
+// ===== 6. 퀴즈 렌더링 =====
 function updateScratchpadVisibility() {
-  const section = SECTIONS[currentSectionIndex];
-  const isAB =
-    section.type === "bin2dec" || section.type === "dec2bin"; // 가, 나 단계
-
-  if (isAB) {
-    scratchpadContainer.classList.remove("hidden");
-    // DOM에 표시된 다음 크기 재설정
-    requestAnimationFrame(() => {
-      resizeScratchpadCanvas();
-    });
-  } else {
-    scratchpadContainer.classList.add("hidden");
-  }
+  scratchpadContainer.classList.remove("hidden");
+  requestAnimationFrame(() => resizeScratchpadCanvas());
 }
 
 function renderCurrentSection() {
@@ -369,9 +363,7 @@ function renderCurrentSection() {
 }
 
 function lockInputs() {
-  questionList
-    .querySelectorAll("input")
-    .forEach((el) => (el.disabled = true));
+  questionList.querySelectorAll("input").forEach((el) => (el.disabled = true));
 }
 
 // ===== 7. 상태 초기화 =====
@@ -382,6 +374,7 @@ function resetState() {
   quizLocked = false;
   initialCorrectCount = 0;
   timeLeftWhenSubmitted = 0;
+  formSubmitted = false;
 
   questions = [];
   currentSectionIndex = 0;
@@ -395,17 +388,18 @@ function resetState() {
   reviewAnswerInput.value = "";
   chatLog.innerHTML = "";
   chatInput.value = "";
+  finalSummaryDiv.innerHTML = "";
+  finalMessageEl.textContent = "";
 
   clearScratchpad();
 }
 
-// ===== 8. 학생 정보 입력에 따라 시작 버튼 활성화 =====
+// ===== 8. 학생 정보 입력 → 시작 버튼 활성화 =====
 function updateStartButtonState() {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
   startQuizBtn.disabled = !(idVal && nameVal);
 }
-
 studentIdInput.addEventListener("input", updateStartButtonState);
 studentNameInput.addEventListener("input", updateStartButtonState);
 
@@ -413,7 +407,6 @@ studentNameInput.addEventListener("input", updateStartButtonState);
 startQuizBtn.addEventListener("click", () => {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
-
   if (!idVal || !nameVal) {
     alert("학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.");
     return;
@@ -449,15 +442,13 @@ nextStageBtn.addEventListener("click", () => {
     alert("이 단계의 5문제에 모두 답을 입력해야 다음 단계로 넘어갈 수 있습니다.");
     return;
   }
+
   if (currentSectionIndex < SECTIONS.length - 1) {
     currentSectionIndex++;
-
     const newSection = SECTIONS[currentSectionIndex];
-    // A → B 넘어갈 때 그림판 초기화
     if (prevSection.id === "A" && newSection.id === "B") {
       clearScratchpad();
     }
-
     renderCurrentSection();
   }
 });
@@ -484,7 +475,63 @@ finishQuizBtn.addEventListener("click", () => {
   gradeAllQuestions();
 });
 
-// ===== 10. 채점 & 요약 (O/X/△/★) =====
+// ===== 10. Google Form 전송 =====
+async function sendResultsToGoogleForm() {
+  if (formSubmitted) return;
+  if (!FORM_URL) return;
+
+  const params = new URLSearchParams();
+
+  // 학번 / 이름
+  if (ENTRY_MAP.studentId) {
+    params.append(ENTRY_MAP.studentId, studentId || "");
+  }
+  if (ENTRY_MAP.studentName) {
+    params.append(ENTRY_MAP.studentName, studentName || "");
+  }
+
+  // 각 문제의 결과(O/X/△/★)
+  questions.forEach((q) => {
+    const entryKey = ENTRY_MAP[q.id];
+    if (!entryKey) return;
+    const value = q.status || "";
+    params.append(entryKey, value);
+  });
+
+  // 점수 요약 값
+  const total = questions.length;
+  const finalCorrect = questions.filter((q) =>
+    ["O", "△", "★"].includes(q.status)
+  ).length;
+  const starCount = questions.filter((q) => q.status === "★").length;
+
+  if (ENTRY_MAP.initialScore) {
+    params.append(ENTRY_MAP.initialScore, String(initialCorrectCount));
+  }
+  if (ENTRY_MAP.finalScore) {
+    params.append(ENTRY_MAP.finalScore, String(finalCorrect));
+  }
+  if (ENTRY_MAP.starCount) {
+    params.append(ENTRY_MAP.starCount, String(starCount));
+  }
+
+  try {
+    await fetch(FORM_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+      },
+      body: params.toString(),
+    });
+    formSubmitted = true;
+    console.log("Google Form 제출 시도 완료 (no-cors, 응답은 확인 불가)");
+  } catch (err) {
+    console.error("Google Form 제출 중 오류:", err);
+  }
+}
+
+// ===== 11. 채점 & 요약 =====
 function normalizeAnswer(str) {
   return (str || "").trim().toUpperCase();
 }
@@ -502,9 +549,7 @@ function gradeAllQuestions() {
     const correctA = normalizeAnswer(q.correctAnswer);
     q.initialCorrect = userA === correctA;
     q.status = q.initialCorrect ? "O" : "X";
-    if (q.initialCorrect) {
-      initialCorrectCount++;
-    }
+    if (q.initialCorrect) initialCorrectCount++;
   });
 
   renderSummaryTable();
@@ -530,16 +575,15 @@ function renderSummaryTable() {
   const xCount = questions.filter((q) => q.status === "X").length;
 
   const rows = questions
-    .map((q) => {
-      return `
+    .map(
+      (q) => `
       <tr data-qid="${q.id}" class="${q.status === "X" ? "clickable" : ""}">
         <td>${q.id}</td>
         <td>${q.sectionLabel}</td>
         <td>${q.prompt}</td>
         <td style="text-align:center;">${q.status || "-"}</td>
-      </tr>
-    `;
-    })
+      </tr>`
+    )
     .join("");
 
   summaryTable.innerHTML = `
@@ -570,10 +614,10 @@ function renderSummaryTable() {
     </table>
   `;
 
-  updateFinalSummary(oCount, triCount, starCount, xCount, total);
+  updateFinalSummary();
 }
 
-// ===== 11. 틀린 문제 다시 풀기 + 두 번 틀리면 챗봇 =====
+// ===== 12. 틀린 문제 다시 풀기 =====
 summaryTable.addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-qid]");
   if (!tr) return;
@@ -608,10 +652,9 @@ reviewSubmitBtn.addEventListener("click", () => {
   const q = currentRetryQuestion;
   const correctA = normalizeAnswer(q.correctAnswer);
 
-  q.reviewAttempts += 1; // ★ 구현을 위한 총 시도 횟수
+  q.reviewAttempts += 1;
 
   if (ans === correctA) {
-    // 정답
     if (q.hadChat && q.reviewAttempts >= 3) {
       q.status = "★";
       reviewFeedback.textContent =
@@ -621,14 +664,11 @@ reviewSubmitBtn.addEventListener("click", () => {
       reviewFeedback.textContent =
         "정답입니다! X가 △(세모)로 바뀝니다.";
     }
-
     q.retryCount = Math.max(q.retryCount, 1);
     renderSummaryTable();
     currentRetryQuestion = null;
   } else {
-    // 오답
     q.retryCount += 1;
-
     if (q.retryCount === 1) {
       reviewFeedback.textContent =
         "아직 틀렸습니다. 이번 문제는 두 번 틀렸으니까, 생성형 AI에게 원리를 물어보며 다시 이해해 봅시다.";
@@ -641,7 +681,7 @@ reviewSubmitBtn.addEventListener("click", () => {
   }
 });
 
-// ===== 12. 챗봇 (생성형 AI) =====
+// ===== 13. 챗봇 =====
 function appendChatMessage(role, text) {
   const div = document.createElement("div");
   if (role === "user") {
@@ -652,32 +692,24 @@ function appendChatMessage(role, text) {
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
-
 function showChatbotForQuestion(q) {
   currentChatQuestion = q;
-  q.hadChat = true; // GPT와 대화한 경험 있음
-
-  // 문제 바꿀 때마다 채팅 초기화
+  q.hadChat = true;
   chatLog.innerHTML = "";
   chatInput.value = "";
-
   chatSection.classList.remove("hidden");
-
   appendChatMessage(
     "assistant",
     "어떤 부분이 가장 헷갈렸나요? 정답을 직접 알려달라고 하기보다는,\n" +
       "예를 들어 ‘2진수에서 10진수로 바꿀 때 어떤 규칙을 쓰나요?’처럼 원리나 방법에 대해 질문해 보세요."
   );
 }
-
 chatSendBtn.addEventListener("click", () => {
   const questionText = chatInput.value.trim();
   if (!questionText) return;
-
   appendChatMessage("user", questionText);
   chatInput.value = "";
 
-  // 정답 직접 요구 감지
   const lower = questionText.toLowerCase();
   const askDirectAnswer =
     lower.includes("정답") ||
@@ -714,7 +746,6 @@ chatSendBtn.addEventListener("click", () => {
 
   askChatbot(currentChatQuestion, questionText);
 });
-
 chatInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -734,11 +765,7 @@ async function askChatbot(question, userText) {
   `.trim();
 
   const userPrompt = `
-다음은 학생이 두 번 이상 틀린 진법 변환 문제일 수 있습니다.
-
 문제: ${question.prompt}
-(정답은 알고 있지만, 학생에게 절대로 정답을 직접 말하지 마세요.)
-
 학생의 질문:
 ${userText}
 
@@ -797,34 +824,69 @@ ${userText}
   }
 }
 
-// ===== 13. 최종 요약 =====
-function updateFinalSummary(oCount, triCount, starCount, xCount, total) {
+// ===== 14. 최종 요약 + 마무리 버튼 =====
+function updateFinalSummary() {
+  const total = questions.length;
+  const oCount = questions.filter((q) => q.status === "O").length;
+  const triCount = questions.filter((q) => q.status === "△").length;
+  const starCount = questions.filter((q) => q.status === "★").length;
+  const xCount = questions.filter((q) => q.status === "X").length;
   const timeStr = formatTime(timeLeftWhenSubmitted);
+
   finalSummaryDiv.innerHTML = `
     <p>🕒 첫 5분 내 제출 기준</p>
     <ul>
       <li>학생: <b>${studentId || "-"} ${studentName || ""}</b></li>
-      <li>처음 맞춘 문제 수(O): <b>${oCount} / ${total}</b></li>
+      <li>처음 맞춘 문제 수(O): <b>${initialCorrectCount} / ${total}</b></li>
       <li>제출 시 남은 시간: <b>${timeStr}</b></li>
+      <li>최종 맞힌 문제 수(O + △ + ★): <b>${
+        oCount + triCount + starCount
+      } / ${total}</b></li>
       <li>다시 풀어서 맞힌 문제 수(△): <b>${triCount}</b></li>
       <li>GPT 도움 + 여러 번 시도 후 맞힌 수(★): <b>${starCount}</b></li>
       <li>아직 틀린 문제 수(X): <b>${xCount}</b></li>
     </ul>
   `;
 }
-
 function showFinalSummary() {
   finalSummarySection.classList.remove("hidden");
-  const total = questions.length;
-  const oCount = questions.filter((q) => q.status === "O").length;
-  const triCount = questions.filter((q) => q.status === "△").length;
-  const starCount = questions.filter((q) => q.status === "★").length;
-  const xCount = questions.filter((q) => q.status === "X").length;
-  updateFinalSummary(oCount, triCount, starCount, xCount, total);
+  updateFinalSummary();
 }
 
-// ===== 14. 초기화 시 그림판 준비 =====
-initScratchpad();
+// “마무리하고 기록 남기기”
+submitAndEndBtn.addEventListener("click", async () => {
+  if (formSubmitted) {
+    finalMessageEl.textContent =
+      "이미 Google Form으로 기록을 전송했습니다. 오늘은 여기까지 풀었습니다.";
+    return;
+  }
+  await sendResultsToGoogleForm();
+  finalMessageEl.textContent =
+    "Google Form으로 기록을 전송했습니다. 오늘은 여기까지 풀어도 좋고, 새 문제로 다시 풀어볼 수도 있어요.";
+  submitAndEndBtn.disabled = true;
+});
 
-// 시작 버튼 초기 상태 한번 반영
+// “같은 학생으로 새 문제 풀기”
+restartQuizBtn.addEventListener("click", () => {
+  if (!formSubmitted) {
+    const ok = confirm(
+      "아직 Google Form으로 기록이 전송되지 않았습니다.\n" +
+        "그래도 새 문제로 다시 시작하시겠습니까?"
+    );
+    if (!ok) return;
+  }
+  // 학번/이름은 그대로 두고, 퀴즈만 초기화
+  resetState();
+  generateAllQuestions();
+  quizSection.classList.remove("hidden");
+  summarySection.classList.add("hidden");
+  reviewSection.classList.add("hidden");
+  chatSection.classList.add("hidden");
+  finalSummarySection.classList.add("hidden");
+  renderCurrentSection();
+  startTimer();
+});
+
+// ===== 15. 초기화 =====
+initScratchpad();
 updateStartButtonState();
