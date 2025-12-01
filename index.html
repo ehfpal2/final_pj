@@ -2,7 +2,7 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <title>진법 변환 미니 형성평가</title>
+    <title>미니 형성평가 모음</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       :root {
@@ -263,6 +263,27 @@
         min-width: 0;
       }
 
+      /* 홈 화면 카드들 */
+      .home-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+      }
+      .home-card-title {
+        font-weight: 600;
+        margin-bottom: 4px;
+      }
+      .home-card-desc {
+        font-size: 0.9rem;
+        color: var(--text-sub);
+        margin-bottom: 8px;
+      }
+      .home-card-badge {
+        font-size: 0.8rem;
+        color: var(--accent-dark);
+        margin-bottom: 6px;
+      }
+
       @media (max-width: 800px) {
         .quiz-body {
           flex-direction: column;
@@ -289,15 +310,52 @@
   </head>
   <body>
     <div id="app">
-      <h1>진법 변환 미니 형성평가</h1>
+      <h1>미니 형성평가 모음</h1>
       <p class="subtitle">
-        5분 안에 진법 변환 20문제를 풀어보고, 모르는 문제는 AI에게 원리를 물어보세요.
+        홈에서 단원을 선택하고, 각 단원의 형성평가를 풀어볼 수 있어요.
       </p>
 
-      <!-- 타이머 + 시작 버튼 + 학생 정보 -->
-      <section class="card" id="control-section">
+      <!-- 🏠 홈 화면 -->
+      <section class="card" id="home-view">
         <div class="card-header">
-          <div class="card-title">퀴즈 컨트롤</div>
+          <div class="card-title">형성평가 선택</div>
+          <span class="pill">단원별 미니 테스트</span>
+        </div>
+        <p class="section-caption">
+          앞으로 다른 단원(디지털코드, 가상메모리, 디스크스케줄링 등)을 여기에 계속 추가할 수
+          있습니다.
+        </p>
+        <div class="home-grid">
+          <!-- 진법 변환 카드 -->
+          <div class="card" style="margin-bottom: 0">
+            <div class="home-card-title">진법 변환 형성평가</div>
+            <div class="home-card-badge">2진수 · 8진수 · 10진수 · 16진수</div>
+            <p class="home-card-desc">
+              5분 안에 진법 변환 20문제를 풀고, 틀린 문제는 AI에게 원리를 물어보며
+              다시 학습합니다.
+            </p>
+            <button id="open-base-quiz-btn">진법 변환 형성평가 시작</button>
+          </div>
+
+          <!-- 앞으로 넣을 다른 형성평가 예시 (비활성) -->
+          <div class="card" style="opacity: 0.6; margin-bottom: 0">
+            <div class="home-card-title">[예정] 디지털코드</div>
+            <div class="home-card-badge">가중치 · 비가중치 · 자보수화 코드</div>
+            <p class="home-card-desc">
+              추후 이 자리에 디지털코드 형성평가, 가상메모리 형성평가 등을 추가할 수
+              있습니다.
+            </p>
+            <button class="secondary" disabled>준비 중</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 🔢 진법 변환 퀴즈 화면들 -->
+
+      <!-- 타이머 + 시작 버튼 + 학생 정보 -->
+      <section class="card hidden" id="control-section">
+        <div class="card-header">
+          <div class="card-title">[진법 변환] 퀴즈 컨트롤</div>
           <span class="pill">총 4단계 · 20문제 · 5분 제한</span>
         </div>
 
@@ -422,8 +480,9 @@
         <div class="row-space" style="margin-top: 10px">
           <button id="submit-and-end-btn">마무리하고 기록 남기기</button>
           <button id="restart-quiz-btn" class="secondary">
-            같은 학생으로 새 문제 풀기
+            홈으로 돌아가기
           </button>
+
         </div>
         <p class="section-caption" id="final-message"></p>
       </section>

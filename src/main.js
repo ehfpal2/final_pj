@@ -32,15 +32,17 @@ const ENTRY_MAP = {
   "D-4": "entry.1512639108",
   "D-5": "entry.1260872459",
 
-  // ⬇⬇⬇ 여기 세 개는 선생님이 폼에서 "첫 점수 / 최종 점수 / 별표 개수"
-  // 질문을 새로 만들고, 실제 entry ID로 교체해 주세요.
-  // 예) initialScore: "entry.1234567890"
+  // 점수 요약 (폼에서 만든 질문 entry 값)
   initialScore: "entry.1921141570",
   finalScore: "entry.1902624582",
   starCount: "entry.1581906669",
 };
 
 // ===== 1. DOM 요소 =====
+const homeView = document.getElementById("home-view");
+const openBaseQuizBtn = document.getElementById("open-base-quiz-btn");
+
+const controlSection = document.getElementById("control-section");
 const startQuizBtn = document.getElementById("startQuizBtn");
 
 const quizSection = document.getElementById("quiz-section");
@@ -394,7 +396,29 @@ function resetState() {
   clearScratchpad();
 }
 
-// ===== 8. 학생 정보 입력 → 시작 버튼 활성화 =====
+// ===== 8. 홈 → 진법 변환 퀴즈 컨트롤 화면 전환 =====
+openBaseQuizBtn.addEventListener("click", () => {
+  homeView.classList.add("hidden");
+  controlSection.classList.remove("hidden");
+
+  studentId = "";
+  studentName = "";
+  studentIdInput.value = "";
+  studentNameInput.value = "";
+  updateStartButtonState();
+
+  quizSection.classList.add("hidden");
+  summarySection.classList.add("hidden");
+  reviewSection.classList.add("hidden");
+  chatSection.classList.add("hidden");
+  finalSummarySection.classList.add("hidden");
+
+  stopTimer();
+  timeLeft = 300;
+  timerSpan.textContent = "05:00";
+});
+
+// ===== 9. 학생 정보 입력 → 시작 버튼 활성화 =====
 function updateStartButtonState() {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
@@ -403,7 +427,7 @@ function updateStartButtonState() {
 studentIdInput.addEventListener("input", updateStartButtonState);
 studentNameInput.addEventListener("input", updateStartButtonState);
 
-// ===== 9. 이벤트: 퀴즈 시작 / 단계 이동 / 제출 =====
+// ===== 10. 이벤트: 퀴즈 시작 / 단계 이동 / 제출 =====
 startQuizBtn.addEventListener("click", () => {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
@@ -417,6 +441,7 @@ startQuizBtn.addEventListener("click", () => {
 
   resetState();
   generateAllQuestions();
+  controlSection.classList.remove("hidden");
   quizSection.classList.remove("hidden");
   summarySection.classList.add("hidden");
   reviewSection.classList.add("hidden");
@@ -475,10 +500,19 @@ finishQuizBtn.addEventListener("click", () => {
   gradeAllQuestions();
 });
 
-// ===== 10. Google Form 전송 =====
+// ===== 11. Google Form 전송 =====
 async function sendResultsToGoogleForm() {
-  if (formSubmitted) return;
-  if (!FORM_URL) return;
+  console.log("🔵 sendResultsToGoogleForm() 호출됨");
+  console.log("  ▶ 현재 학생:", studentId, studentName);
+
+  if (formSubmitted) {
+    console.log("  ↪ 이미 formSubmitted = true, 전송 취소");
+    return;
+  }
+  if (!FORM_URL) {
+    console.log("  ❌ FORM_URL 이 비어있음");
+    return;
+  }
 
   const params = new URLSearchParams();
 
@@ -515,8 +549,10 @@ async function sendResultsToGoogleForm() {
     params.append(ENTRY_MAP.starCount, String(starCount));
   }
 
+  console.log("  ▶ 전송될 폼 데이터:", Object.fromEntries(params));
+
   try {
-    await fetch(FORM_URL, {
+    const res = await fetch(FORM_URL, {
       method: "POST",
       mode: "no-cors",
       headers: {
@@ -525,18 +561,19 @@ async function sendResultsToGoogleForm() {
       body: params.toString(),
     });
     formSubmitted = true;
-    console.log("Google Form 제출 시도 완료 (no-cors, 응답은 확인 불가)");
+    console.log("✅ Google Form 제출 시도 완료 (no-cors, 응답은 확인 불가)", res);
   } catch (err) {
-    console.error("Google Form 제출 중 오류:", err);
+    console.error("❌ Google Form 제출 중 오류:", err);
   }
 }
 
-// ===== 11. 채점 & 요약 =====
+// ===== 12. 채점 & 요약 =====
 function normalizeAnswer(str) {
   return (str || "").trim().toUpperCase();
 }
 
 function gradeAllQuestions() {
+  console.log("👉 gradeAllQuestions() 실행");
   initialCorrectCount = 0;
 
   questions.forEach((q) => {
@@ -617,7 +654,7 @@ function renderSummaryTable() {
   updateFinalSummary();
 }
 
-// ===== 12. 틀린 문제 다시 풀기 =====
+// ===== 13. 틀린 문제 다시 풀기 =====
 summaryTable.addEventListener("click", (e) => {
   const tr = e.target.closest("tr[data-qid]");
   if (!tr) return;
@@ -681,7 +718,7 @@ reviewSubmitBtn.addEventListener("click", () => {
   }
 });
 
-// ===== 13. 챗봇 =====
+// ===== 14. 챗봇 =====
 function appendChatMessage(role, text) {
   const div = document.createElement("div");
   if (role === "user") {
@@ -692,6 +729,7 @@ function appendChatMessage(role, text) {
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
+
 function showChatbotForQuestion(q) {
   currentChatQuestion = q;
   q.hadChat = true;
@@ -704,6 +742,7 @@ function showChatbotForQuestion(q) {
       "예를 들어 ‘2진수에서 10진수로 바꿀 때 어떤 규칙을 쓰나요?’처럼 원리나 방법에 대해 질문해 보세요."
   );
 }
+
 chatSendBtn.addEventListener("click", () => {
   const questionText = chatInput.value.trim();
   if (!questionText) return;
@@ -746,6 +785,7 @@ chatSendBtn.addEventListener("click", () => {
 
   askChatbot(currentChatQuestion, questionText);
 });
+
 chatInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -824,7 +864,7 @@ ${userText}
   }
 }
 
-// ===== 14. 최종 요약 + 마무리 버튼 =====
+// ===== 15. 최종 요약 + 마무리 버튼 =====
 function updateFinalSummary() {
   const total = questions.length;
   const oCount = questions.filter((q) => q.status === "O").length;
@@ -848,6 +888,7 @@ function updateFinalSummary() {
     </ul>
   `;
 }
+
 function showFinalSummary() {
   finalSummarySection.classList.remove("hidden");
   updateFinalSummary();
@@ -855,6 +896,8 @@ function showFinalSummary() {
 
 // “마무리하고 기록 남기기”
 submitAndEndBtn.addEventListener("click", async () => {
+  console.log("🟠 [클릭] 마무리하고 기록 남기기 버튼 눌림");
+
   if (formSubmitted) {
     finalMessageEl.textContent =
       "이미 Google Form으로 기록을 전송했습니다. 오늘은 여기까지 풀었습니다.";
@@ -866,27 +909,41 @@ submitAndEndBtn.addEventListener("click", async () => {
   submitAndEndBtn.disabled = true;
 });
 
-// “같은 학생으로 새 문제 풀기”
+// “홈으로 돌아가기”
 restartQuizBtn.addEventListener("click", () => {
   if (!formSubmitted) {
     const ok = confirm(
       "아직 Google Form으로 기록이 전송되지 않았습니다.\n" +
-        "그래도 새 문제로 다시 시작하시겠습니까?"
+        "그래도 홈으로 돌아가시겠습니까?"
     );
     if (!ok) return;
   }
-  // 학번/이름은 그대로 두고, 퀴즈만 초기화
+
+  // 1) 현재 퀴즈 상태 초기화
   resetState();
-  generateAllQuestions();
-  quizSection.classList.remove("hidden");
+
+  // 2) 학번/이름도 비우고, 내부 변수도 초기화
+  studentId = "";
+  studentName = "";
+  studentIdInput.value = "";
+  studentNameInput.value = "";
+  updateStartButtonState(); // ▶ start 버튼 다시 비활성화
+
+  // 3) 모든 퀴즈 관련 섹션 숨기기
+  controlSection.classList.add("hidden");
+  quizSection.classList.add("hidden");
   summarySection.classList.add("hidden");
   reviewSection.classList.add("hidden");
   chatSection.classList.add("hidden");
   finalSummarySection.classList.add("hidden");
-  renderCurrentSection();
-  startTimer();
+
+  // 4) 홈 화면 보여주기
+  homeView.classList.remove("hidden");
+
+  finalMessageEl.textContent = "";
 });
 
-// ===== 15. 초기화 =====
+
+// ===== 16. 초기화 =====
 initScratchpad();
 updateStartButtonState();
