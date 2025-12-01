@@ -432,7 +432,12 @@ startQuizBtn.addEventListener("click", () => {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
   if (!idVal || !nameVal) {
-    alert("학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.");
+    Swal.fire({
+      icon: "warning",
+      title: "입력 필수",
+      text: "학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.",
+      confirmButtonText: "확인"
+    });
     return;
   }
 
@@ -453,7 +458,12 @@ startQuizBtn.addEventListener("click", () => {
 
 nextStageBtn.addEventListener("click", () => {
   if (quizLocked) {
-    alert("시간이 종료되어 더 이상 수정할 수 없습니다.");
+    Swal.fire({
+      icon: "info",
+      title: "시간 종료",
+      text: "시간이 종료되어 더 이상 수정할 수 없습니다.",
+      confirmButtonText: "확인"
+    });
     return;
   }
   const prevSection = SECTIONS[currentSectionIndex];
@@ -464,7 +474,12 @@ nextStageBtn.addEventListener("click", () => {
     (q) => q.userAnswer && q.userAnswer !== ""
   );
   if (!allAnswered) {
-    alert("이 단계의 5문제에 모두 답을 입력해야 다음 단계로 넘어갈 수 있습니다.");
+    Swal.fire({
+      icon: "warning",
+      title: "모든 문제를 풀어주세요",
+      text: "이 단계의 5문제에 모두 답을 입력해야 다음 단계로 넘어갈 수 있습니다.",
+      confirmButtonText: "확인"
+    });
     return;
   }
 
@@ -480,7 +495,12 @@ nextStageBtn.addEventListener("click", () => {
 
 finishQuizBtn.addEventListener("click", () => {
   if (quizLocked) {
-    alert("이미 채점이 진행되었습니다.");
+    Swal.fire({
+      icon: "info",
+      title: "이미 채점됨",
+      text: "이미 채점이 진행되었습니다.",
+      confirmButtonText: "확인"
+    });
     return;
   }
   const section = SECTIONS[currentSectionIndex];
@@ -489,7 +509,12 @@ finishQuizBtn.addEventListener("click", () => {
     (q) => q.userAnswer && q.userAnswer !== ""
   );
   if (!allAnswered) {
-    alert("마지막 단계의 5문제도 모두 답을 입력해주세요.");
+    Swal.fire({
+      icon: "warning",
+      title: "모든 문제를 풀어주세요",
+      text: "마지막 단계의 5문제도 모두 답을 입력해주세요.",
+      confirmButtonText: "확인"
+    });
     return;
   }
 
@@ -593,12 +618,23 @@ function gradeAllQuestions() {
   summarySection.classList.remove("hidden");
 
   if (initialCorrectCount === questions.length) {
-    const goNext = confirm(
-      "축하합니다! 20문제를 모두 맞았습니다.\n다음 수준의 문제로 넘어가시겠습니까?"
-    );
-    if (goNext) {
-      alert("다음 수준 문제는 나중에 확장할 수 있습니다 🙂");
-    }
+    Swal.fire({
+      icon: "success",
+      title: "축하합니다!",
+      text: "20문제를 모두 맞았습니다. 다음 수준의 문제로 넘어가시겠습니까?",
+      showCancelButton: true,
+      confirmButtonText: "네",
+      cancelButtonText: "아니요"
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({
+          icon: "info",
+          title: "안내",
+          text: "다음 수준 문제는 나중에 확장할 수 있습니다 🙂",
+          confirmButtonText: "확인"
+        });
+      }
+    });
   }
 
   showFinalSummary();
@@ -664,7 +700,12 @@ summaryTable.addEventListener("click", (e) => {
   if (!q) return;
 
   if (q.status !== "X") {
-    alert("이미 맞았거나( O / △ / ★ ) 다시 풀기 대상이 아닙니다.");
+    Swal.fire({
+      icon: "info",
+      title: "다시 풀 수 없음",
+      text: "이미 맞았거나( O / △ / ★ ) 다시 풀기 대상이 아닙니다.",
+      confirmButtonText: "확인"
+    });
     return;
   }
 
@@ -682,7 +723,12 @@ reviewSubmitBtn.addEventListener("click", () => {
 
   const ans = normalizeAnswer(reviewAnswerInput.value);
   if (!ans) {
-    alert("답을 입력해주세요.");
+    Swal.fire({
+      icon: "warning",
+      title: "답 입력 필요",
+      text: "답을 입력해주세요.",
+      confirmButtonText: "확인"
+    });
     return;
   }
 
@@ -910,13 +956,17 @@ submitAndEndBtn.addEventListener("click", async () => {
 });
 
 // “홈으로 돌아가기”
-restartQuizBtn.addEventListener("click", () => {
+restartQuizBtn.addEventListener("click", async () => {
   if (!formSubmitted) {
-    const ok = confirm(
-      "아직 Google Form으로 기록이 전송되지 않았습니다.\n" +
-        "그래도 홈으로 돌아가시겠습니까?"
-    );
-    if (!ok) return;
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "기록 미전송",
+      text: "아직 Google Form으로 기록이 전송되지 않았습니다. 그래도 홈으로 돌아가시겠습니까?",
+      showCancelButton: true,
+      confirmButtonText: "네",
+      cancelButtonText: "아니요"
+    });
+    if (!result.isConfirmed) return;
   }
 
   // 1) 현재 퀴즈 상태 초기화
