@@ -32,20 +32,82 @@ const ENTRY_MAP = {
   "D-4": "entry.1512639108",
   "D-5": "entry.1260872459",
 
-  // 점수 요약 (폼에서 만든 질문 entry 값)
+  // 선생님이 폼에서 만든 "처음 점수 / 최종 점수 / 별표 개수" entry
   initialScore: "entry.1921141570",
   finalScore: "entry.1902624582",
   starCount: "entry.1581906669",
 };
 
+// ===== SweetAlert2 헬퍼 =====
+function swalAlert(title, text, icon = "info") {
+  return Swal.fire({
+    title,
+    text,
+    icon,
+    confirmButtonColor: "#3085d6",
+    confirmButtonText: "확인",
+  });
+}
+
+function swalConfirm({
+  title,
+  text,
+  icon = "warning",
+  confirmButtonText = "확인",
+  cancelButtonText = "취소",
+}) {
+  return Swal.fire({
+    title,
+    text,
+    icon,
+    showCancelButton: true,
+    confirmButtonColor: "#3085d6",
+    cancelButtonColor: "#d33",
+    confirmButtonText,
+    cancelButtonText,
+  });
+}
+
 // ===== 1. DOM 요소 =====
+
+// 홈 + 섹션
 const homeView = document.getElementById("home-view");
+const controlSection = document.getElementById("control-section");
+const quizSection = document.getElementById("quiz-section");
+const summarySection = document.getElementById("summary-section");
+const reviewSection = document.getElementById("review-section");
+const controlBackHomeBtn = document.getElementById("control-back-home-btn");
+const chatSection = document.getElementById("chat-section");
+const finalSummarySection = document.getElementById("final-summary-section");
+const dec2binPracticeSection = document.getElementById(
+  "dec2bin-practice-section"
+);
+const bin2decPracticeSection = document.getElementById(
+  "bin2dec-practice-section"
+);
+
+// 홈 화면 버튼
+const openDec2BinPracticeBtn = document.getElementById(
+  "open-dec2bin-practice-btn"
+);
+const openBin2DecPracticeBtn = document.getElementById(
+  "open-bin2dec-practice-btn"
+);
 const openBaseQuizBtn = document.getElementById("open-base-quiz-btn");
 
-const controlSection = document.getElementById("control-section");
-const startQuizBtn = document.getElementById("startQuizBtn");
+// 연습 모드 내부 버튼
+const dec2binBackHomeBtn = document.getElementById("dec2bin-back-home-btn");
+const dec2binNewProblemBtn = document.getElementById(
+  "dec2bin-new-problem-btn"
+);
 
-const quizSection = document.getElementById("quiz-section");
+const bin2decBackHomeBtn = document.getElementById("bin2dec-back-home-btn");
+const bin2decNewProblemBtn = document.getElementById(
+  "bin2dec-new-problem-btn"
+);
+
+// 형성평가 컨트롤
+const startQuizBtn = document.getElementById("startQuizBtn");
 const stageLabel = document.getElementById("stage-label");
 const questionList = document.getElementById("question-list");
 const nextStageBtn = document.getElementById("nextStageBtn");
@@ -53,21 +115,17 @@ const finishQuizBtn = document.getElementById("finishQuizBtn");
 const quizMessage = document.getElementById("quiz-message");
 const timerSpan = document.getElementById("timer");
 
-const summarySection = document.getElementById("summary-section");
 const summaryTable = document.getElementById("summary-table");
 
-const reviewSection = document.getElementById("review-section");
 const reviewQuestionText = document.getElementById("review-question-text");
 const reviewAnswerInput = document.getElementById("review-answer");
 const reviewSubmitBtn = document.getElementById("review-submit-btn");
 const reviewFeedback = document.getElementById("review-feedback");
 
-const chatSection = document.getElementById("chat-section");
 const chatLog = document.getElementById("chat-log");
 const chatInput = document.getElementById("chat-input");
 const chatSendBtn = document.getElementById("chat-send-btn");
 
-const finalSummarySection = document.getElementById("final-summary-section");
 const finalSummaryDiv = document.getElementById("final-summary");
 const submitAndEndBtn = document.getElementById("submit-and-end-btn");
 const restartQuizBtn = document.getElementById("restart-quiz-btn");
@@ -83,7 +141,7 @@ const scratchpadCanvas = document.getElementById("scratchpad");
 const scratchpadModeBtn = document.getElementById("scratchpad-mode-btn");
 const scratchpadClearBtn = document.getElementById("scratchpad-clear-btn");
 
-// ===== 2. 퀴즈 상태 변수 =====
+// ===== 2. 형성평가 상태 변수 =====
 const SECTIONS = [
   { id: "A", label: "가. 2진수 → 10진수", type: "bin2dec" },
   { id: "B", label: "나. 10진수 → 2진수", type: "dec2bin" },
@@ -132,7 +190,7 @@ function startTimer() {
         "시간이 종료되었습니다. 현재까지 입력한 답안으로 채점합니다.";
       lockInputs();
       timeLeftWhenSubmitted = 0;
-      gradeAllQuestions(); // 자동 채점 (폼 전송은 나중에 '마무리' 버튼에서)
+      gradeAllQuestions(); // 자동 채점
     }
   }, 1000);
 }
@@ -396,29 +454,7 @@ function resetState() {
   clearScratchpad();
 }
 
-// ===== 8. 홈 → 진법 변환 퀴즈 컨트롤 화면 전환 =====
-openBaseQuizBtn.addEventListener("click", () => {
-  homeView.classList.add("hidden");
-  controlSection.classList.remove("hidden");
-
-  studentId = "";
-  studentName = "";
-  studentIdInput.value = "";
-  studentNameInput.value = "";
-  updateStartButtonState();
-
-  quizSection.classList.add("hidden");
-  summarySection.classList.add("hidden");
-  reviewSection.classList.add("hidden");
-  chatSection.classList.add("hidden");
-  finalSummarySection.classList.add("hidden");
-
-  stopTimer();
-  timeLeft = 300;
-  timerSpan.textContent = "05:00";
-});
-
-// ===== 9. 학생 정보 입력 → 시작 버튼 활성화 =====
+// ===== 8. 학생 정보 입력 → 시작 버튼 활성화 =====
 function updateStartButtonState() {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
@@ -427,17 +463,64 @@ function updateStartButtonState() {
 studentIdInput.addEventListener("input", updateStartButtonState);
 studentNameInput.addEventListener("input", updateStartButtonState);
 
-// ===== 10. 이벤트: 퀴즈 시작 / 단계 이동 / 제출 =====
-startQuizBtn.addEventListener("click", () => {
+// ===== 9. 홈 화면 & 섹션 전환 =====
+function hideAllMainSections() {
+  controlSection.classList.add("hidden");
+  quizSection.classList.add("hidden");
+  summarySection.classList.add("hidden");
+  reviewSection.classList.add("hidden");
+  chatSection.classList.add("hidden");
+  finalSummarySection.classList.add("hidden");
+  dec2binPracticeSection.classList.add("hidden");
+  bin2decPracticeSection.classList.add("hidden");
+}
+
+function showHome() {
+  hideAllMainSections();
+  homeView.classList.remove("hidden");
+}
+
+// 홈 → 10진수→2진수 연습
+openDec2BinPracticeBtn.addEventListener("click", () => {
+  hideAllMainSections();
+  homeView.classList.add("hidden");
+  dec2binPracticeSection.classList.remove("hidden");
+  newDec2BinProblem();
+});
+
+// 홈 → 2진수→10진수 연습
+openBin2DecPracticeBtn.addEventListener("click", () => {
+  hideAllMainSections();
+  homeView.classList.add("hidden");
+  bin2decPracticeSection.classList.remove("hidden");
+  newBin2DecProblem();
+});
+
+// 홈 → 형성평가 컨트롤
+openBaseQuizBtn.addEventListener("click", () => {
+  hideAllMainSections();
+  homeView.classList.add("hidden");
+  controlSection.classList.remove("hidden");
+});
+
+// 연습모드 → 홈
+dec2binBackHomeBtn.addEventListener("click", () => {
+  showHome();
+});
+bin2decBackHomeBtn.addEventListener("click", () => {
+  showHome();
+});
+controlBackHomeBtn.addEventListener("click", () => {
+  // 아직 퀴즈 시작 전 단계라 기록은 없으니 바로 홈으로 보내면 충분
+  showHome();
+});
+
+// ===== 10. 형성평가: 이벤트 =====
+startQuizBtn.addEventListener("click", async () => {
   const idVal = studentIdInput.value.trim();
   const nameVal = studentNameInput.value.trim();
   if (!idVal || !nameVal) {
-    Swal.fire({
-      icon: "warning",
-      title: "입력 필수",
-      text: "학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert("입력 필요", "학번과 이름을 모두 입력한 뒤 시작할 수 있습니다.", "warning");
     return;
   }
 
@@ -446,7 +529,6 @@ startQuizBtn.addEventListener("click", () => {
 
   resetState();
   generateAllQuestions();
-  controlSection.classList.remove("hidden");
   quizSection.classList.remove("hidden");
   summarySection.classList.add("hidden");
   reviewSection.classList.add("hidden");
@@ -456,33 +538,30 @@ startQuizBtn.addEventListener("click", () => {
   startTimer();
 });
 
-nextStageBtn.addEventListener("click", () => {
+nextStageBtn.addEventListener("click", async () => {
   if (quizLocked) {
-    Swal.fire({
-      icon: "info",
-      title: "시간 종료",
-      text: "시간이 종료되어 더 이상 수정할 수 없습니다.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert(
+      "시간 종료",
+      "시간이 종료되어 더 이상 수정할 수 없습니다.",
+      "warning"
+    );
     return;
   }
-  const prevSection = SECTIONS[currentSectionIndex];
-
   const section = SECTIONS[currentSectionIndex];
   const sectionQuestions = questions.filter((q) => q.sectionId === section.id);
   const allAnswered = sectionQuestions.every(
     (q) => q.userAnswer && q.userAnswer !== ""
   );
   if (!allAnswered) {
-    Swal.fire({
-      icon: "warning",
-      title: "모든 문제를 풀어주세요",
-      text: "이 단계의 5문제에 모두 답을 입력해야 다음 단계로 넘어갈 수 있습니다.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert(
+      "답안 미완성",
+      "이 단계의 5문제에 모두 답을 입력해야 다음 단계로 넘어갈 수 있습니다.",
+      "warning"
+    );
     return;
   }
 
+  const prevSection = SECTIONS[currentSectionIndex];
   if (currentSectionIndex < SECTIONS.length - 1) {
     currentSectionIndex++;
     const newSection = SECTIONS[currentSectionIndex];
@@ -493,14 +572,9 @@ nextStageBtn.addEventListener("click", () => {
   }
 });
 
-finishQuizBtn.addEventListener("click", () => {
+finishQuizBtn.addEventListener("click", async () => {
   if (quizLocked) {
-    Swal.fire({
-      icon: "info",
-      title: "이미 채점됨",
-      text: "이미 채점이 진행되었습니다.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert("이미 채점 완료", "이미 채점이 진행되었습니다.", "info");
     return;
   }
   const section = SECTIONS[currentSectionIndex];
@@ -509,12 +583,11 @@ finishQuizBtn.addEventListener("click", () => {
     (q) => q.userAnswer && q.userAnswer !== ""
   );
   if (!allAnswered) {
-    Swal.fire({
-      icon: "warning",
-      title: "모든 문제를 풀어주세요",
-      text: "마지막 단계의 5문제도 모두 답을 입력해주세요.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert(
+      "답안 미완성",
+      "마지막 단계의 5문제도 모두 답을 입력해주세요.",
+      "warning"
+    );
     return;
   }
 
@@ -527,17 +600,8 @@ finishQuizBtn.addEventListener("click", () => {
 
 // ===== 11. Google Form 전송 =====
 async function sendResultsToGoogleForm() {
-  console.log("🔵 sendResultsToGoogleForm() 호출됨");
-  console.log("  ▶ 현재 학생:", studentId, studentName);
-
-  if (formSubmitted) {
-    console.log("  ↪ 이미 formSubmitted = true, 전송 취소");
-    return;
-  }
-  if (!FORM_URL) {
-    console.log("  ❌ FORM_URL 이 비어있음");
-    return;
-  }
+  if (formSubmitted) return;
+  if (!FORM_URL) return;
 
   const params = new URLSearchParams();
 
@@ -574,10 +638,8 @@ async function sendResultsToGoogleForm() {
     params.append(ENTRY_MAP.starCount, String(starCount));
   }
 
-  console.log("  ▶ 전송될 폼 데이터:", Object.fromEntries(params));
-
   try {
-    const res = await fetch(FORM_URL, {
+    await fetch(FORM_URL, {
       method: "POST",
       mode: "no-cors",
       headers: {
@@ -586,9 +648,9 @@ async function sendResultsToGoogleForm() {
       body: params.toString(),
     });
     formSubmitted = true;
-    console.log("✅ Google Form 제출 시도 완료 (no-cors, 응답은 확인 불가)", res);
+    console.log("Google Form 제출 시도 완료 (no-cors, 응답은 확인 불가)");
   } catch (err) {
-    console.error("❌ Google Form 제출 중 오류:", err);
+    console.error("Google Form 제출 중 오류:", err);
   }
 }
 
@@ -598,7 +660,6 @@ function normalizeAnswer(str) {
 }
 
 function gradeAllQuestions() {
-  console.log("👉 gradeAllQuestions() 실행");
   initialCorrectCount = 0;
 
   questions.forEach((q) => {
@@ -618,21 +679,19 @@ function gradeAllQuestions() {
   summarySection.classList.remove("hidden");
 
   if (initialCorrectCount === questions.length) {
-    Swal.fire({
-      icon: "success",
+    swalConfirm({
       title: "축하합니다!",
       text: "20문제를 모두 맞았습니다. 다음 수준의 문제로 넘어가시겠습니까?",
-      showCancelButton: true,
-      confirmButtonText: "네",
-      cancelButtonText: "아니요"
+      icon: "success",
+      confirmButtonText: "네, 다음 수준으로",
+      cancelButtonText: "아니요",
     }).then((result) => {
       if (result.isConfirmed) {
-        Swal.fire({
-          icon: "info",
-          title: "안내",
-          text: "다음 수준 문제는 나중에 확장할 수 있습니다 🙂",
-          confirmButtonText: "확인"
-        });
+        swalAlert(
+          "준비 중",
+          "다음 수준 문제는 나중에 확장할 수 있습니다 🙂",
+          "info"
+        );
       }
     });
   }
@@ -691,7 +750,7 @@ function renderSummaryTable() {
 }
 
 // ===== 13. 틀린 문제 다시 풀기 =====
-summaryTable.addEventListener("click", (e) => {
+summaryTable.addEventListener("click", async (e) => {
   const tr = e.target.closest("tr[data-qid]");
   if (!tr) return;
 
@@ -700,12 +759,11 @@ summaryTable.addEventListener("click", (e) => {
   if (!q) return;
 
   if (q.status !== "X") {
-    Swal.fire({
-      icon: "info",
-      title: "다시 풀 수 없음",
-      text: "이미 맞았거나( O / △ / ★ ) 다시 풀기 대상이 아닙니다.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert(
+      "다시 풀기 불가",
+      "이미 맞았거나( O / △ / ★ ) 다시 풀기 대상이 아닙니다.",
+      "info"
+    );
     return;
   }
 
@@ -718,17 +776,12 @@ summaryTable.addEventListener("click", (e) => {
   reviewAnswerInput.focus();
 });
 
-reviewSubmitBtn.addEventListener("click", () => {
+reviewSubmitBtn.addEventListener("click", async () => {
   if (!currentRetryQuestion) return;
 
   const ans = normalizeAnswer(reviewAnswerInput.value);
   if (!ans) {
-    Swal.fire({
-      icon: "warning",
-      title: "답 입력 필요",
-      text: "답을 입력해주세요.",
-      confirmButtonText: "확인"
-    });
+    await swalAlert("입력 필요", "답을 입력해주세요.", "warning");
     return;
   }
 
@@ -775,7 +828,6 @@ function appendChatMessage(role, text) {
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
 }
-
 function showChatbotForQuestion(q) {
   currentChatQuestion = q;
   q.hadChat = true;
@@ -788,7 +840,6 @@ function showChatbotForQuestion(q) {
       "예를 들어 ‘2진수에서 10진수로 바꿀 때 어떤 규칙을 쓰나요?’처럼 원리나 방법에 대해 질문해 보세요."
   );
 }
-
 chatSendBtn.addEventListener("click", () => {
   const questionText = chatInput.value.trim();
   if (!questionText) return;
@@ -831,7 +882,6 @@ chatSendBtn.addEventListener("click", () => {
 
   askChatbot(currentChatQuestion, questionText);
 });
-
 chatInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -844,6 +894,7 @@ async function askChatbot(question, userText) {
 당신은 고등학교 정보 교과 선생님입니다.
 학생이 푼 진법 변환 문제를 도와주되, 절대로 정답을 숫자로 직접 말하지 마세요.
 대신,
+- 각 자리의 가중치를 물어봐서 맞으면 맞다고 답해주고
 - 개념과 원리를 쉬운 말로 설명하고
 - 비슷하지만 다른 예시를 들어주고
 - 학생이 스스로 계산해 볼 수 있도록 질문을 던져 주세요.
@@ -934,7 +985,6 @@ function updateFinalSummary() {
     </ul>
   `;
 }
-
 function showFinalSummary() {
   finalSummarySection.classList.remove("hidden");
   updateFinalSummary();
@@ -942,8 +992,6 @@ function showFinalSummary() {
 
 // “마무리하고 기록 남기기”
 submitAndEndBtn.addEventListener("click", async () => {
-  console.log("🟠 [클릭] 마무리하고 기록 남기기 버튼 눌림");
-
   if (formSubmitted) {
     finalMessageEl.textContent =
       "이미 Google Form으로 기록을 전송했습니다. 오늘은 여기까지 풀었습니다.";
@@ -955,45 +1003,343 @@ submitAndEndBtn.addEventListener("click", async () => {
   submitAndEndBtn.disabled = true;
 });
 
+// “같은 학생으로 새 문제 풀기” (버튼 라벨은 선생님 취향대로 :)
 // “홈으로 돌아가기”
 restartQuizBtn.addEventListener("click", async () => {
+  // 아직 폼 안 보냈으면 한 번 물어보기
   if (!formSubmitted) {
-    const result = await Swal.fire({
-      icon: "warning",
+    const result = await swalConfirm({
       title: "기록 미전송",
-      text: "아직 Google Form으로 기록이 전송되지 않았습니다. 그래도 홈으로 돌아가시겠습니까?",
-      showCancelButton: true,
-      confirmButtonText: "네",
-      cancelButtonText: "아니요"
+      text: "아직 Google Form으로 기록이 전송되지 않았습니다.\n그래도 홈으로 돌아가시겠습니까?",
+      icon: "warning",
+      confirmButtonText: "네, 홈으로 갈게요",
+      cancelButtonText: "취소",
     });
     if (!result.isConfirmed) return;
   }
 
-  // 1) 현재 퀴즈 상태 초기화
+  // 형성평가 상태 초기화
   resetState();
 
-  // 2) 학번/이름도 비우고, 내부 변수도 초기화
-  studentId = "";
-  studentName = "";
-  studentIdInput.value = "";
-  studentNameInput.value = "";
-  updateStartButtonState(); // ▶ start 버튼 다시 비활성화
+  // 학번/이름은 남겨둘 수도 있고, 완전히 초기화하고 싶으면 여기서 비워도 됨
+  // studentIdInput.value = "";
+  // studentNameInput.value = "";
+  // updateStartButtonState();
 
-  // 3) 모든 퀴즈 관련 섹션 숨기기
-  controlSection.classList.add("hidden");
-  quizSection.classList.add("hidden");
-  summarySection.classList.add("hidden");
-  reviewSection.classList.add("hidden");
-  chatSection.classList.add("hidden");
-  finalSummarySection.classList.add("hidden");
-
-  // 4) 홈 화면 보여주기
-  homeView.classList.remove("hidden");
-
-  finalMessageEl.textContent = "";
+  // 홈 화면으로 이동
+  showHome();
 });
 
 
-// ===== 16. 초기화 =====
+// ===== 16. 10진수 → 2진수 연습 (change1 스타일) =====
+const dec2binState = {
+  decimal: 0,
+  bitCount: 0,
+  bits: [],
+  weights: [],
+};
+
+function newDec2BinProblem() {
+  const n = randInt(0, 1023);
+  const bitLen = Math.max(1, n.toString(2).length);
+
+  dec2binState.decimal = n;
+  dec2binState.bitCount = bitLen;
+  dec2binState.bits = new Array(bitLen).fill(0);
+  dec2binState.weights = [];
+
+  for (let i = 0; i < bitLen; i++) {
+    dec2binState.weights[i] = 2 ** (bitLen - 1 - i); // MSB 왼쪽
+  }
+
+  document.getElementById("dec2bin-decimal").textContent = n;
+  document.getElementById("dec2bin-bits-input").value = "";
+
+  renderDec2BinBitsGrid();
+  updateDec2BinSum();
+  document.getElementById("dec2bin-bits-feedback").textContent = "";
+  document.getElementById("dec2bin-final-feedback").textContent = "";
+}
+
+function renderDec2BinBitsGrid() {
+  const grid = document.getElementById("dec2bin-bits-grid");
+  grid.innerHTML = "";
+
+  const bitLen = dec2binState.bitCount;
+  const weights = dec2binState.weights;
+
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = `repeat(${bitLen}, minmax(56px, 1fr))`;
+  grid.style.gap = "8px";
+
+  for (let i = 0; i < bitLen; i++) {
+    const col = document.createElement("div");
+    col.className = "dec2bin-col";
+    col.dataset.index = String(i);
+
+    const bitBtn = document.createElement("button");
+    bitBtn.className = "dec2bin-bit-btn";
+    bitBtn.textContent = `${bitLen - 1 - i}번 비트`;
+    bitBtn.addEventListener("click", () => {
+      dec2binState.bits[i] = dec2binState.bits[i] ? 0 : 1;
+      updateDec2BinView();
+    });
+
+    const weightDiv = document.createElement("div");
+    weightDiv.className = "dec2bin-weight";
+    weightDiv.textContent = weights[i];
+
+    const bitValDiv = document.createElement("div");
+    bitValDiv.className = "dec2bin-bit-value";
+    bitValDiv.textContent = "0";
+
+    const contribDiv = document.createElement("div");
+    contribDiv.className = "dec2bin-contrib";
+    contribDiv.textContent = "0";
+
+    col.appendChild(bitBtn);
+    col.appendChild(weightDiv);
+    col.appendChild(bitValDiv);
+    col.appendChild(contribDiv);
+
+    grid.appendChild(col);
+  }
+
+  document.getElementById("dec2bin-bits-area").classList.add("hidden");
+}
+
+function updateDec2BinView() {
+  const bits = dec2binState.bits;
+  const weights = dec2binState.weights;
+
+  const cols = document.querySelectorAll("#dec2bin-bits-grid .dec2bin-col");
+
+  cols.forEach((col) => {
+    const idx = Number(col.dataset.index);
+    const bitValDiv = col.querySelector(".dec2bin-bit-value");
+    const contribDiv = col.querySelector(".dec2bin-contrib");
+    const b = bits[idx];
+
+    // 0 / 1 표시
+    bitValDiv.textContent = b;
+
+    // 색상 토글 (1이면 강조색, 0이면 회색)
+    if (b) {
+      bitValDiv.classList.add("on");
+    } else {
+      bitValDiv.classList.remove("on");
+    }
+
+    // 아래 실제 값 (가중치 or 0)
+    contribDiv.textContent = b ? weights[idx] : 0;
+  });
+
+  updateDec2BinSum();
+}
+
+
+// 선택한 비트의 합 + 정답 여부 표시
+function updateDec2BinSum() {
+  const bits = dec2binState.bits;
+  const weights = dec2binState.weights;
+  let sum = 0;
+
+  for (let i = 0; i < bits.length; i++) {
+    if (bits[i]) sum += weights[i];
+  }
+
+  // 합계 표시
+  document.getElementById(
+    "dec2bin-sum-text"
+  ).innerHTML = `<b>선택한 비트의 합:</b> ${sum}`;
+
+  // 정답/오답 피드백
+  const target = dec2binState.decimal;
+  const fbEl = document.getElementById("dec2bin-final-feedback");
+  const bitsAreaVisible = !document
+    .getElementById("dec2bin-bits-area")
+    .classList.contains("hidden");
+
+  // 아직 비트 수 정답을 못 맞춘 상태라면 메시지 비움
+  if (!bitsAreaVisible) {
+    fbEl.textContent = "";
+    return;
+  }
+
+  if (sum === target) {
+    const binStr = bits.map((b) => (b ? "1" : "0")).join("");
+    fbEl.textContent = `정답! ${target}을(를) 2진수로 표현하면 ${binStr} 입니다.`;
+  } else {
+    fbEl.textContent = "아직 정답이 아닙니다. 비트를 조정해 보세요 🙂";
+  }
+}
+
+
+// 비트 수 정답 확인
+document
+  .getElementById("dec2bin-check-bits-btn")
+  .addEventListener("click", () => {
+    const input = document.getElementById("dec2bin-bits-input");
+    const userBits = Number(input.value);
+    const correctBits = dec2binState.bitCount;
+    const fb = document.getElementById("dec2bin-bits-feedback");
+
+    if (!userBits) {
+      fb.textContent = "비트 수를 입력해 주세요.";
+      document.getElementById("dec2bin-bits-area").classList.add("hidden");
+      return;
+    }
+
+    if (userBits === correctBits) {
+      fb.textContent = `정답입니다! 이 수를 표현하는 데 필요한 비트 수는 ${correctBits}비트입니다.`;
+      document
+        .getElementById("dec2bin-bits-area")
+        .classList.remove("hidden");
+    } else {
+      fb.textContent = `틀렸습니다. 다시 생각해 보세요 🙂`;
+      document.getElementById("dec2bin-bits-area").classList.add("hidden");
+    }
+  });
+
+// 새 문제 버튼
+dec2binNewProblemBtn.addEventListener("click", () => {
+  newDec2BinProblem();
+});
+
+// ===== 17. 2진수 → 10진수 연습 (change2 스타일) =====
+const bin2decState = {
+  bitLen: 0,
+  bits: [],
+  weights: [],
+  answerWeights: [],
+  decimalValue: 0,
+};
+
+function newBin2DecProblem() {
+  const bitLen = randInt(1, 10);
+  let bits;
+  do {
+    bits = Array.from({ length: bitLen }, () => randInt(0, 1));
+  } while (!bits.some((b) => b === 1)); // 1이 적어도 하나
+
+  const weights = [];
+  for (let i = 0; i < bitLen; i++) {
+    weights[i] = 2 ** (bitLen - 1 - i); // MSB 왼쪽
+  }
+
+  const answerWeights = [];
+  let decimalValue = 0;
+  for (let i = 0; i < bitLen; i++) {
+    if (bits[i] === 1) {
+      answerWeights.push(weights[i]);
+      decimalValue += weights[i];
+    }
+  }
+
+  bin2decState.bitLen = bitLen;
+  bin2decState.bits = bits;
+  bin2decState.weights = weights;
+  bin2decState.answerWeights = answerWeights;
+  bin2decState.decimalValue = decimalValue;
+
+  document.getElementById("bin2dec-binary").textContent = bits.join("");
+
+  const grid = document.getElementById("bin2dec-weights-grid");
+  grid.innerHTML = "";
+  grid.style.display = "grid";
+  grid.style.gridTemplateColumns = `repeat(${bitLen}, minmax(56px, 1fr))`;
+  grid.style.gap = "8px";
+
+  for (let i = 0; i < bitLen; i++) {
+    const col = document.createElement("div");
+    col.style.display = "flex";
+    col.style.flexDirection = "column";
+    col.style.alignItems = "center";
+    col.style.gap = "4px";
+
+    const bitLabel = document.createElement("div");
+    bitLabel.textContent = bits[i];
+    bitLabel.style.fontWeight = "600";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.index = String(i);
+    input.style.textAlign = "center";
+    input.style.width = "100%";
+    input.style.maxWidth = "64px";
+
+    col.appendChild(bitLabel);
+    col.appendChild(input);
+    grid.appendChild(col);
+  }
+
+  document.getElementById("bin2dec-weights-feedback").textContent = "";
+  document.getElementById("bin2dec-final-feedback").textContent = "";
+  document.getElementById("bin2dec-decimal-input").value = "";
+}
+
+document
+  .getElementById("bin2dec-check-weights-btn")
+  .addEventListener("click", () => {
+    const grid = document.getElementById("bin2dec-weights-grid");
+    const inputs = grid.querySelectorAll("input");
+    const userWeights = [];
+    const fb = document.getElementById("bin2dec-weights-feedback");
+
+    try {
+      inputs.forEach((input, idx) => {
+        const v = input.value.trim();
+        if (bin2decState.bits[idx] === 1 && v !== "") {
+          const num = Number(v);
+          if (Number.isNaN(num)) throw new Error("NaN");
+          userWeights.push(num);
+        }
+      });
+
+      const sortedUser = userWeights.slice().sort((a, b) => a - b);
+      const sortedAns = bin2decState.answerWeights
+        .slice()
+        .sort((a, b) => a - b);
+
+      if (JSON.stringify(sortedUser) === JSON.stringify(sortedAns)) {
+        fb.textContent =
+          "정답입니다! 이제 각 가중치의 합을 계산해 10진수 값을 구해보세요.";
+      } else {
+        fb.textContent =
+          "틀렸습니다. 1이 있는 자리의 가중치를 정확히 입력했는지 다시 확인해 보세요.";
+      }
+    } catch (e) {
+      fb.textContent = "숫자만 입력해 주세요.";
+    }
+  });
+
+document
+  .getElementById("bin2dec-final-check-btn")
+  .addEventListener("click", () => {
+    const input = document.getElementById("bin2dec-decimal-input");
+    const value = Number(input.value);
+    const fb = document.getElementById("bin2dec-final-feedback");
+
+    if (Number.isNaN(value)) {
+      fb.textContent = "10진수 값을 숫자로 입력해 주세요.";
+      return;
+    }
+
+    if (value === bin2decState.decimalValue) {
+      fb.textContent = `정답! 2진수 ${bin2decState.bits.join(
+        ""
+      )}의 10진수 값은 ${bin2decState.decimalValue}입니다.`;
+    } else {
+      fb.textContent = "틀렸습니다. 각 가중치의 합을 다시 계산해 보세요.";
+    }
+  });
+
+// 새 문제 버튼
+bin2decNewProblemBtn.addEventListener("click", () => {
+  newBin2DecProblem();
+});
+
+// ===== 18. 초기화 =====
 initScratchpad();
 updateStartButtonState();
+showHome(); // 처음에는 홈 화면 보이기
